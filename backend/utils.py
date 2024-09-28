@@ -50,7 +50,11 @@ def process_audio(filepath, mode='stt', lang='rw', text=None):
     If mode is 'tts', it transcribes the audio file and returns the link to the generated audio file
     '''
     if mode == 'stt':
+        print('before')
         response = pindo(mode, filepath, lang, text)
+        print('after')
+        print(response)
+        print(lang)
         return {"transcription": response['text']}
     elif mode == 'tts':
         response = pindo(mode, filepath, lang, text)
@@ -73,9 +77,8 @@ def translate(text, source, target):
 #     }
 
 def call_llm(text, test_op=None):
-    if test_op:
-        return {
-            "op_type": test_op,
-            "redirect_url": "https://example.com/test",
-            "data": {"text": "Test LLM response"}
-        }
+    return {
+        "op_type": test_op,
+        "redirect_url": "https://example.com/test",
+        "data": {"text": "Do you want to renew you visa?"}
+    }
