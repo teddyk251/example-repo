@@ -68,7 +68,6 @@ def handle_audio_input(file, lang):
             else:
                 text_for_tts = llm_response['data']['text']
             tts_response = synthesize_text_to_speech(text_for_tts, language=lang)
-            # tts_response = process_audio(filepath=None, lang=lang, mode='tts', text=text_for_tts)
             return jsonify({"audio": tts_response})
         else:
             return jsonify({"error": "Invalid operation type from LLM"}), 500

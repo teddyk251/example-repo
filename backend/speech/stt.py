@@ -6,6 +6,7 @@ import os
 import base64
 import requests
 import logging
+import time
 from io import BytesIO
 from dotenv import load_dotenv
 
@@ -34,6 +35,7 @@ def setup_groq_client():
 
 def transcribe_whisper(filename: str, language: str = "en"):
     """Transcribe audio using Whisper via Groq API."""
+    start_time = time.time()
     try:
         client = setup_groq_client()
         with open(filename, "rb") as file:
@@ -45,6 +47,7 @@ def transcribe_whisper(filename: str, language: str = "en"):
                 temperature=0.2
             )
         logging.info(f"Whisper transcription: {transcription.text}")
+        logging.info(f"Whisper Transcription took {time.time() - start_time} seconds.")
         return transcription.text
     except Exception as e:
         logging.error(f"Error in Whisper transcription: {e}")
@@ -52,6 +55,7 @@ def transcribe_whisper(filename: str, language: str = "en"):
 
 def transcribe_pindo(filename: str, language: str):
     """Transcribe audio using Pindo for supported languages."""
+    start_time = time.time()
     try:
         url = "https://api.pindo.io/v1/transcription/stt"
         data = {"lang": language}
@@ -68,6 +72,7 @@ def transcribe_pindo(filename: str, language: str):
         if response.status_code == 200:
             response_json = response.json()
             logging.info(f"Pindo transcription: {response_json['text']}")
+            logging.info(f"Pindo Transcription took {time.time() - start_time} seconds.")
             return response_json['text']
         else:
             logging.error(f"Pindo transcription failed: {response.status_code}")

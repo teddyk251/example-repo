@@ -4,6 +4,7 @@
 import os
 import requests
 import logging
+import time
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -23,14 +24,13 @@ SUPPORTED_LANGS = ["en", "rw", "sw", "fr"]
 
 # API keys (store these securely)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-print("OPENAI_API_KEY", OPENAI_API_KEY)
-# PINDO_API_KEY = os.getenv("PINDO_API_KEY")
 
 # Setup OpenAI TTS Client
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 def synthesize_speech_openai(text: str, language_code: str = "en"):
     """Synthesize speech using OpenAI API."""
+    start_time = time.time()
     try:
         # Call the OpenAI TTS API
         response = openai_client.audio.speech.create(
@@ -46,6 +46,7 @@ def synthesize_speech_openai(text: str, language_code: str = "en"):
                 audio_file.write(chunk)
 
         logging.info(f"OpenAI TTS audio saved to {output_file}")
+        logging.info(f"OpenAI TTS took {time.time() - start_time} seconds.")
         return output_file
 
     except Exception as e:
@@ -55,6 +56,7 @@ def synthesize_speech_openai(text: str, language_code: str = "en"):
 
 def synthesize_speech_pindo(text: str, language: str):
     """Synthesize speech using Pindo for supported languages."""
+    start = time.time()
     try:
         url = "https://api.pindo.io/v1/transcription/tts"
         data = {"text": text, "lang": language}
@@ -68,6 +70,7 @@ def synthesize_speech_pindo(text: str, language: str):
             with open(output_file, "wb") as out:
                 out.write(audio_content)
             logging.info(f"Pindo TTS audio saved to {output_file}")
+            logging.info(f"Pindo TTS took {time.time() - start} seconds.")
             return output_file
         else:
             logging.error(f"Pindo TTS failed: {response.status_code}")
