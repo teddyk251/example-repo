@@ -7,6 +7,7 @@ import logging
 import time
 from openai import OpenAI
 from dotenv import load_dotenv
+import uuid
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # Go up one directory to the project root
@@ -21,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Supported languages for TTS
 SUPPORTED_LANGS = ["en", "rw", "sw", "fr"]
-
+UPLOAD_FOLDER = 'uploads'
 # API keys (store these securely)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -41,13 +42,14 @@ def synthesize_speech_openai(text: str, language_code: str = "en"):
 
         # Stream the audio content directly to a file
         output_file = "output_openai.wav"
-        with open(output_file, "wb") as audio_file:
+        file_path = os.path.join(UPLOAD_FOLDER, f"{output_file}_{uuid.uuid4().hex[:8]}")
+        with open(file_path, "wb") as audio_file:
             for chunk in response.iter_bytes():
                 audio_file.write(chunk)
 
-        logging.info(f"OpenAI TTS audio saved to {output_file}")
+        logging.info(f"OpenAI TTS audio saved to {file_path}")
         logging.info(f"OpenAI TTS took {time.time() - start_time} seconds.")
-        return output_file
+        return file_path
 
     except Exception as e:
         logging.error(f"Error in OpenAI TTS: {e}")
@@ -66,12 +68,12 @@ def synthesize_speech_pindo(text: str, language: str):
             audio_url = response.json().get("generated_audio_url")
             audio_content = requests.get(audio_url).content
 
-            output_file = "output_pindo.wav"
-            with open(output_file, "wb") as out:
+            file_path = os.path.join(UPLOAD_FOLDER, f"{output_file}_{uuid.uuid4().hex[:8]}")
+            with open(file_path, "wb") as audio_file:
                 out.write(audio_content)
             logging.info(f"Pindo TTS audio saved to {output_file}")
             logging.info(f"Pindo TTS took {time.time() - start} seconds.")
-            return output_file
+            return file_path
         else:
             logging.error(f"Pindo TTS failed: {response.status_code}")
             return None

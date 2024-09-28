@@ -4,20 +4,39 @@ from utils import *
 from speech.stt import transcribe_audio
 from speech.tts import synthesize_text_to_speech
 from translate.translate import translate_text
+from rag.data_processor import run_chat_session
 from dotenv import load_dotenv
 from flask_cors import CORS
+import uuid
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
 
 app = Flask(__name__)
 CORS(app)
 
-load_dotenv()
-
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Go up one directory to the project root
+project_root = os.path.dirname(current_dir)
+# Construct the path to the .env file
+env_path = os.path.join(project_root, '.env')
+# Load the .env file
+load_dotenv(dotenv_path=env_path)
+cloudinary_key = os.getenv("CLOUDINARY_SECRET")
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Configuration       
+cloudinary.config( 
+    cloud_name = "dlu3m1ulr", 
+    api_key = "536255541225145", 
+    api_secret = cloudinary_key, # Click 'View API Keys' above to copy your API secret
+    secure=True
+)
 
 @app.route('/test', methods=['GET'])
 def test():
@@ -61,14 +80,12 @@ def test():
 #     except Exception as e:
 #         return jsonify({"error": str(e)}), 500
 
-
 @app.route('/process', methods=['POST'])
 def process_input():
     try:
         lang = request.args.get('lang', 'en')
         
         if 'file' in request.files:
-            print("file")
             return handle_audio_input(request.files['file'], lang)
         elif request.is_json:
             return handle_text_input(request.get_json(), lang)
@@ -85,35 +102,30 @@ def handle_audio_input(file, lang):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     try:
         file.save(filepath)
-        # print("File saved to: ", filepath)
-        # wav_filename = f"converted_16khz_{os.path.splitext(filepath)[0]}.wav"
-        # wav_filepath = os.path.join(app.config['UPLOAD_FOLDER'], wav_filename)
-        # convert_to_16khz_wav(filepath, wav_filepath)
-        # print(f"Converted audio saved to: {wav_filepath}")
-        # transcription = process_audio(filepath, lang=lang, mode='stt')
         transcription = transcribe_audio(filepath, lang)
-        print(transcription)
         if lang != 'en':
             translation = translate_text(transcription, source_lang=lang, target_lang='en', service='amazon')
-
-            print(translation)
             text_for_llm = translation
         else:
             text_for_llm = transcription
-        llm_response = call_llm(text_for_llm, test_op='chat')
-        print(llm_response)
+        llm_response = run_chat_session(text_for_llm)
         
         if llm_response['op_type'] in ['new', 'renew']:
             return jsonify({"redirect_url": llm_response['redirect_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
-                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang,service='amazon')
+                translation = translate_text(llm_response['data'], source_lang='en', target_lang=lang,service='amazon')        
                 text_for_tts = translation
-                print(text_for_tts)
             else:
-                text_for_tts = llm_response['data']['text']
+                text_for_tts = llm_response['data']
             tts_response = synthesize_text_to_speech(text_for_tts, language=lang)
-            return jsonify({"audio": tts_response})
+            unique_filename = f"{filename}_{uuid.uuid4().hex[:8]}.wav"
+            # Upload audio
+            upload_result = cloudinary.uploader.upload(tts_response,
+            resource_type="auto",
+            public_id=f"audios/{tts_response}",
+            format="wav")
+            return jsonify({"audio": upload_result["secure_url"]})
         else:
             return jsonify({"error": "Invalid operation type from LLM"}), 500
     except Exception as e:
@@ -135,16 +147,16 @@ def handle_text_input(data, lang):
         else:
             text_for_llm = text
         
-        llm_response = call_llm(text_for_llm, test_op='chat')
+        llm_response = run_chat_session(text_for_llm)
         
         if llm_response['op_type'] in ['new', 'renew']:
             return jsonify({"redirect_url": llm_response['redirect_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
-                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang, service='amazon')
+                translation = translate_text(llm_response['data'], source_lang='en', target_lang=lang, service='amazon')
                 response_text = translation
             else:
-                response_text = llm_response['data']['text']
+                response_text = llm_response['data']
             return jsonify({"response": response_text})
         else:
             return jsonify({"error": "Invalid operation type from LLM"}), 500
