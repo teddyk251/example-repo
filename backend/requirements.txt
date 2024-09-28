@@ -3,7 +3,11 @@ python-dotenv==1.0.1
 requests==2.32.3
 boto3==1.35.29
 google-cloud-translate==3.16.0
-openai==1.50.1
 gunicorn==21.2.0
 groq==0.11.0
 flask-cors
+cloudinary
+langchain==0.3.1
+langchain_chroma==0.1.4
+langchain_openai==0.2.1
+openai==1.50.2

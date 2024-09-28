@@ -164,9 +164,9 @@ def run_chat_session(user_message: str):
             For other queries, the redir_url should be chat.
 
             {
-            data: Your response here
-            op_type: new/renew/chat,
-            redir_url: new/renew/chat,        
+            "data": "Your response here",
+            "op_type": "new/renew/chat",
+            "redir_url": "new/renew/chat",
             }
             """
         }
