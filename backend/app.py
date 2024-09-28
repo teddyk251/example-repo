@@ -17,6 +17,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+@app.route('/test', methods=['GET'])
+def test():
+    return jsonify({"message": "Test successful"}), 200
+
 
 @app.route('/process', methods=['POST'])
 def process_input():
@@ -24,6 +28,7 @@ def process_input():
         lang = request.args.get('lang', 'en')
         
         if 'file' in request.files:
+            print("file")
             return handle_audio_input(request.files['file'], lang)
         elif request.is_json:
             return handle_text_input(request.get_json(), lang)
@@ -44,7 +49,7 @@ def handle_audio_input(file, lang):
         transcription = transcribe_audio(filepath, lang)
         print(transcription)
         if lang != 'en':
-            translation = translate_text(transcription, source_lang=lang, target_lang='en')
+            translation = translate_text(transcription, source_lang=lang, target_lang='en', service='amazon')
 
             print(translation)
             text_for_llm = translation
@@ -57,7 +62,7 @@ def handle_audio_input(file, lang):
             return jsonify({"redirect_url": llm_response['redirect_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
-                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang)
+                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang,service='amazon')
                 text_for_tts = translation
                 print(text_for_tts)
             else:
@@ -81,7 +86,7 @@ def handle_text_input(data, lang):
         
         text = data['text']
         if lang != 'en':
-            translation = translate_text(text, source_lang=lang, target_lang='en')
+            translation = translate_text(text, source_lang=lang, target_lang='en', service='amazon')
             text_for_llm = translation
         else:
             text_for_llm = text
@@ -92,7 +97,7 @@ def handle_text_input(data, lang):
             return jsonify({"redirect_url": llm_response['redirect_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
-                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang)
+                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang, service='amazon')
                 response_text = translation
             else:
                 response_text = llm_response['data']['text']
