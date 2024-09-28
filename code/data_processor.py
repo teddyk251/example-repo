@@ -8,16 +8,20 @@ from langchain.docstore.document import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
 from langchain.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage
+import uuid
+from groq import Groq
 
 # Load environment variables
 load_dotenv()
 openai_key = os.getenv("OPENAI_API_KEY")
-
-# Initialize OpenAI client
-client = OpenAI(api_key=openai_key)
+groq_key = os.getenv("GROQ_API_KEY")
 
 # Constants
 CHROMA_PATH = "chroma"
+
+# Chat session history
+chat_sessions = {}
 
 def process_data(file_path):
     """
@@ -47,6 +51,7 @@ def process_data(file_path):
 
 def summarize_content(content):
     """Summarize content using OpenAI API"""
+    client = OpenAI(api_key=openai_key)
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -69,107 +74,116 @@ def add_summary_to_documents(documents):
     return summarized_documents
 
 def save_to_chroma(documents: list[Document]):
-    """Save the data to Chroma using summaries for embeddings"""
+    # Clear out the database first.
     if os.path.exists(CHROMA_PATH):
         shutil.rmtree(CHROMA_PATH)
 
-    texts = [doc.metadata["summary"] for doc in documents]
-    metadatas = [
-        {
-            **doc.metadata,
-            "full_content": doc.page_content,
-            "summary": doc.metadata["summary"]
-        }
-        for doc in documents
-    ]
-
-    db = Chroma.from_texts(
-        texts=texts,
-        metadatas=metadatas,
-        embedding=OpenAIEmbeddings(),
-        persist_directory=CHROMA_PATH
+    # Create a new DB from the documents.
+    db = Chroma.from_documents(
+        documents, OpenAIEmbeddings(), persist_directory=CHROMA_PATH
     )
-    #db.persist()
-    print(f"Saved {len(documents)} documents to {CHROMA_PATH}.")
+    print(f"Saved {len(documents)} chunks to {CHROMA_PATH}.")
 
-def query_chroma_and_generate_response(query_text: str, k: int = 4):
-    """Query Chroma and generate a structured response based on the query type"""
+def query_chroma_and_generate_response(query_text: str, session_id: str = None, k: int = 2):
     embedding_function = OpenAIEmbeddings()
     db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
     
     results = db.similarity_search_with_relevance_scores(query_text, k=k)
     
     if len(results) == 0 or results[0][1] < 0.7:
-        return "Unable to find matching results."
+        return {
+            "query_type": "chat",
+            "response": "I'm sorry, but I couldn't find any relevant information to answer your question."
+        }
 
-    context_text = "\n\n---\n\n".join([doc.metadata['full_content'] for doc, _score in results])
-    
-    PROMPT_TEMPLATE = """
-    Answer the question based only on the following context:
+    context_text = "\n\n---\n\n".join([doc.metadata['summary'] for doc, _score in results])
+    return context_text
 
-    {context}
-
-    ---
-
-    Question: {question}
-
-    First, determine if the user is asking about:
-    1. Applying for a new permit
-    2. Renewing an existing permit
-    3. A general question (not specifically about new permits or renewals)
-    4. Leave the redir_url as None, do not add any url
-    5. Leave the data as an empty string, do not add any data
-
-    Then, respond in the following JSON format:
-
-    For new permit or renewal queries:
-    {{
-        "op_type": "new" or "renew",
-        "redir_url": "None",
-        "data": ""
-    }}
-
-    For general questions:
-    {{
-        "query_type": "chat",
-        "data": ""
-    }}
+def get_chat_completion(messages: list, model_name: str = "llama-3.1-70b-versatile"):
     """
+    Generates a chat completion using Groq's chat completion API, allowing for message history.
     
-    prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-    prompt = prompt_template.format(context=context_text, question=query_text)
+    Args:
+        messages (list): A list of dictionaries representing the message history in the conversation.
+                         Each dictionary should have 'role' and 'content' keys.
+        model_name (str): The model to be used for generating the response. Default is "llama3-8b-8192".
     
-    model = ChatOpenAI(temperature=0)  # Set temperature to 0 for more consistent outputs
-    response_text = model.invoke(prompt)
-    
-    response = response_text.content
-        # Convert the JSON
+    Returns:
+        str: The assistant's response message content.
+    """
     try:
-        response_json = json.loads(response)
-        print("Converted response to JSON successfully.")
-    except json.JSONDecodeError as e:
-        print(f"Failed to convert response to JSON: {e}")
-        response_json = None
+        client = Groq()
+        chat_completion = client.chat.completions.create(
+            messages=messages,
+            model=model_name,
+        )
+        # Extract and return the response content
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        print(f"Error generating chat completion: {e}")
+        return None
 
-    return response_json
-        
-
-if __name__ == "__main__":
-    # Process data
-    documents = process_data("data/web_scrape_output_with_content.json")
-    print('Done processing data')
+def run_chat_session(user_message: str):
+    """
+    Runs a chat session with the given user message.
     
-    # Add summary to each document
-    #print("Adding summaries to documents...")
-    #summarized_documents = add_summary_to_documents(documents)
+    Args:
+        user_message (str): The user's message to start the chat session.
+    
+    Returns:
+        str: The assistant's response message content.
+    """
+    message_history = [
+        {
+            "role": "system",
+            "content": """You are a virtual assistant for Irembo, the Rwandan government's e-services platform. Your primary role is to help citizens navigate and use the various services available on the Irembo website. Here are your key responsibilities:
 
-    # Save the data to Chroma
-    #save_to_chroma(summarized_documents)
-    #print("Summarization and saving to Chroma complete.")
+            1. Guide users through the process of accessing different government services on Irembo.
+            2. Provide information about required documents, fees, and procedures for specific services.
+            3. Assist with troubleshooting common issues users might encounter while using the platform.
+            4. Offer clear, step-by-step instructions for completing online applications and forms.
+            5. Explain the status of ongoing service requests and how to track them.
+            6. Direct users to the appropriate departments or contact points for complex issues beyond your scope.
 
-    # Example query
-    #query = "I am a new student in Rwanda. I want to apply for a permit?"
-    query = 'I have been living in Rwanda for 3 years. I want to renew my permit?'
-    response = query_chroma_and_generate_response(query)
-    print(response)
-    print(f"The data type of response is: {type(response)}")
+            You will be provided with relevant, up-to-date context for each user query to ensure your responses are accurate and helpful. Always maintain a professional, friendly, and patient demeanor, as you are representing the Rwandan government. If you're unsure about any information, it's better to acknowledge your uncertainty and suggest where the user might find more accurate details.
+
+            Important: For each response, only provide a concise one-paragraph summary (3-4 sentences) of the relevant information, requirements, timeline, fees and other relevant 
+            information. 
+
+            Return the response in the following JSON format:
+            1. data is the response content.
+            2. op_type is the operation type (new/renew/chat). If the query is about student permits, the op_type should be new or renew depending whether 
+            the user is asking about a new or renewal process for the permit. For other other queries, the op_type should be chat.
+            3. redir_url takes on the same value as op_type. If the query is about student permits, the redir_url should be new or renew.
+            For other queries, the redir_url should be chat.
+
+            {{
+            data: Your response here
+            op_type: new/renew/chat,
+            redir_url: new/renew/chat,        
+            }}
+            """
+        }
+    ]
+
+    # Retrieve relevant context
+    context = query_chroma_and_generate_response(user_message)
+    
+    # Append user message and context to the history
+    message_history.append({"role": "user", "content": f"Context: {context}\n\nQuestion: {user_message}"})
+    
+    # Get assistant response
+    assistant_response = get_chat_completion(message_history)
+    
+    if assistant_response:
+        # Append assistant's response to the message history
+        message_history.append({"role": "assistant", "content": assistant_response})
+        return assistant_response
+    else:
+        return "Failed to generate a response."
+
+# Example usage:
+if __name__ == "__main__":
+    user_query = input("User: ")
+    response = run_chat_session(user_query)
+    print(f"Assistant: {response}")
