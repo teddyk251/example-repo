@@ -2,6 +2,15 @@ import boto3
 from google.cloud import translate
 from google.api_core.exceptions import GoogleAPIError
 import os
+import time
+from dotenv import load_dotenv
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+env_path = os.path.join(project_root, '.env')
+
+# Load the .env file
+load_dotenv(dotenv_path=env_path)
 
 # get AWS_REGION from environment variable
 AWS_REGION = os.getenv("AWS_REGION")
@@ -45,6 +54,7 @@ def google_translate(text: str, project_id: str, source_lang: str, target_lang: 
 
 def amazon_translate(text: str, source_lang: str, target_lang: str, region: str) -> str:
     """Uses Amazon Translate to translate text."""
+    start_time = time.time()
     
     client = boto3.client('translate', region_name=AWS_REGION)
     
@@ -54,6 +64,7 @@ def amazon_translate(text: str, source_lang: str, target_lang: str, region: str)
             SourceLanguageCode=source_lang,
             TargetLanguageCode=target_lang
         )
+        print(f"Amazon Translate took {time.time() - start_time} seconds.")
         return response['TranslatedText']
     except Exception as e:
         print(f"Error translating text with Amazon: {e}")

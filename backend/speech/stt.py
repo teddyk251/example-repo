@@ -6,7 +6,17 @@ import os
 import base64
 import requests
 import logging
+import time
 from io import BytesIO
+from dotenv import load_dotenv
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Go up one directory to the project root
+project_root = os.path.dirname(current_dir)
+# Construct the path to the .env file
+env_path = os.path.join(project_root, '.env')
+# Load the .env file
+load_dotenv(dotenv_path=env_path)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +26,7 @@ SUPPORTED_LANGS = ["en", "rw", "sw", "fr"]
 
 # API keys (store these securely)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-PINDO_API_KEY = os.getenv("PINDO_API_KEY")
+# PINDO_API_KEY = os.getenv("PINDO_API_KEY")
 
 def setup_groq_client():
     """Setup Groq client."""
@@ -25,6 +35,7 @@ def setup_groq_client():
 
 def transcribe_whisper(filename: str, language: str = "en"):
     """Transcribe audio using Whisper via Groq API."""
+    start_time = time.time()
     try:
         client = setup_groq_client()
         with open(filename, "rb") as file:
@@ -36,6 +47,7 @@ def transcribe_whisper(filename: str, language: str = "en"):
                 temperature=0.2
             )
         logging.info(f"Whisper transcription: {transcription.text}")
+        logging.info(f"Whisper Transcription took {time.time() - start_time} seconds.")
         return transcription.text
     except Exception as e:
         logging.error(f"Error in Whisper transcription: {e}")
@@ -43,6 +55,7 @@ def transcribe_whisper(filename: str, language: str = "en"):
 
 def transcribe_pindo(filename: str, language: str):
     """Transcribe audio using Pindo for supported languages."""
+    start_time = time.time()
     try:
         url = "https://api.pindo.io/v1/transcription/stt"
         data = {"lang": language}
@@ -50,17 +63,17 @@ def transcribe_pindo(filename: str, language: str):
         with open(filename, 'rb') as audio_file:
             audio_content = audio_file.read()
         audio_file_io = BytesIO(audio_content)
-
+        filename = os.path.basename(filename)
         files = {
             'audio': (filename, audio_file_io, 'audio/wav')
         }
-
         response = requests.post(url, files=files, data=data)
-
+        print(response.status_code)
         if response.status_code == 200:
             response_json = response.json()
-            logging.info(f"Pindo transcription: {response_json['transcript']}")
-            return response_json['transcript']
+            logging.info(f"Pindo transcription: {response_json['text']}")
+            logging.info(f"Pindo Transcription took {time.time() - start_time} seconds.")
+            return response_json['text']
         else:
             logging.error(f"Pindo transcription failed: {response.status_code}")
             return "Error in transcription."
