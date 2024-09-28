@@ -93,7 +93,7 @@ def save_to_chroma(documents: list[Document]):
     print(f"Saved {len(documents)} documents to {CHROMA_PATH}.")
 
 def query_chroma_and_generate_response(query_text: str, k: int = 4):
-    """Query Chroma and generate a response using the full text context"""
+    """Query Chroma and generate a structured response based on the query type"""
     embedding_function = OpenAIEmbeddings()
     db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
     
@@ -111,19 +111,48 @@ def query_chroma_and_generate_response(query_text: str, k: int = 4):
 
     ---
 
-    Answer the question based on the above context: {question}
+    Question: {question}
+
+    First, determine if the user is asking about:
+    1. Applying for a new permit
+    2. Renewing an existing permit
+    3. A general question (not specifically about new permits or renewals)
+    4. Leave the redir_url as None, do not add any url
+    5. Leave the data as an empty string, do not add any data
+
+    Then, respond in the following JSON format:
+
+    For new permit or renewal queries:
+    {{
+        "op_type": "new" or "renew",
+        "redir_url": "None",
+        "data": ""
+    }}
+
+    For general questions:
+    {{
+        "query_type": "chat",
+        "data": ""
+    }}
     """
     
     prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
     prompt = prompt_template.format(context=context_text, question=query_text)
     
-    model = ChatOpenAI()
+    model = ChatOpenAI(temperature=0)  # Set temperature to 0 for more consistent outputs
     response_text = model.invoke(prompt)
     
-    sources = [doc.metadata.get("title", "Unknown source") for doc, _score in results]
-    formatted_response = f"Response: \n{response_text}\n\nSources:\n" + "\n".join(sources)
-    
-    return formatted_response
+    response = response_text.content
+        # Convert the JSON
+    try:
+        response_json = json.loads(response)
+        print("Converted response to JSON successfully.")
+    except json.JSONDecodeError as e:
+        print(f"Failed to convert response to JSON: {e}")
+        response_json = None
+
+    return response_json
+        
 
 if __name__ == "__main__":
     # Process data
@@ -131,14 +160,16 @@ if __name__ == "__main__":
     print('Done processing data')
     
     # Add summary to each document
-    print("Adding summaries to documents...")
-    summarized_documents = add_summary_to_documents(documents)
+    #print("Adding summaries to documents...")
+    #summarized_documents = add_summary_to_documents(documents)
 
     # Save the data to Chroma
-    save_to_chroma(summarized_documents)
-    print("Summarization and saving to Chroma complete.")
+    #save_to_chroma(summarized_documents)
+    #print("Summarization and saving to Chroma complete.")
 
     # Example query
-    query = "How can I renew my visa?"
+    #query = "I am a new student in Rwanda. I want to apply for a permit?"
+    query = 'I have been living in Rwanda for 3 years. I want to renew my permit?'
     response = query_chroma_and_generate_response(query)
     print(response)
+    print(f"The data type of response is: {type(response)}")
