@@ -1,5 +1,5 @@
 # tts.py
-# This implements text-to-speech (TTS) functionality using Groq or Pindo for specific languages.
+# This implements text-to-speech (TTS) functionality using OpenAI or Pindo for specific languages.
 
 import os
 import requests
