@@ -178,7 +178,8 @@ def run_chat_session(user_message: str):
     if assistant_response:
         # Append assistant's response to the message history
         message_history.append({"role": "assistant", "content": assistant_response})
-        return assistant_response
+        response_json = json.loads(assistant_response)
+        return response_json
     else:
         return "Failed to generate a response."
 
