@@ -4,6 +4,7 @@ from utils import *
 from speech.stt import transcribe_audio
 from speech.tts import synthesize_text_to_speech
 from translate.translate import translate_text
+from rag.data_processor import run_chat_session
 from dotenv import load_dotenv
 from flask_cors import CORS
 
@@ -85,12 +86,6 @@ def handle_audio_input(file, lang):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     try:
         file.save(filepath)
-        # print("File saved to: ", filepath)
-        # wav_filename = f"converted_16khz_{os.path.splitext(filepath)[0]}.wav"
-        # wav_filepath = os.path.join(app.config['UPLOAD_FOLDER'], wav_filename)
-        # convert_to_16khz_wav(filepath, wav_filepath)
-        # print(f"Converted audio saved to: {wav_filepath}")
-        # transcription = process_audio(filepath, lang=lang, mode='stt')
         transcription = transcribe_audio(filepath, lang)
         print(transcription)
         if lang != 'en':
@@ -100,18 +95,19 @@ def handle_audio_input(file, lang):
             text_for_llm = translation
         else:
             text_for_llm = transcription
-        llm_response = call_llm(text_for_llm, test_op='chat')
+        llm_response = run_chat_session(text_for_llm)
         print(llm_response)
         
         if llm_response['op_type'] in ['new', 'renew']:
             return jsonify({"redirect_url": llm_response['redirect_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
-                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang,service='amazon')
+                translation = translate_text(llm_response['data'], source_lang='en', target_lang=lang,service='amazon')
+                print("translated")
                 text_for_tts = translation
                 print(text_for_tts)
             else:
-                text_for_tts = llm_response['data']['text']
+                text_for_tts = llm_response['data']
             tts_response = synthesize_text_to_speech(text_for_tts, language=lang)
             return jsonify({"audio": tts_response})
         else:
@@ -135,16 +131,16 @@ def handle_text_input(data, lang):
         else:
             text_for_llm = text
         
-        llm_response = call_llm(text_for_llm, test_op='chat')
+        llm_response = run_chat_session(text_for_llm)
         
         if llm_response['op_type'] in ['new', 'renew']:
             return jsonify({"redirect_url": llm_response['redirect_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
-                translation = translate_text(llm_response['data']['text'], source_lang='en', target_lang=lang, service='amazon')
+                translation = translate_text(llm_response['data'], source_lang='en', target_lang=lang, service='amazon')
                 response_text = translation
             else:
-                response_text = llm_response['data']['text']
+                response_text = llm_response['data']
             return jsonify({"response": response_text})
         else:
             return jsonify({"error": "Invalid operation type from LLM"}), 500
