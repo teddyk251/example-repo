@@ -3,3 +3,4 @@ langchain_chroma==0.1.4
 langchain_openai==0.2.1
 openai==1.50.2
 python-dotenv==1.0.1
+faiss-cpu
