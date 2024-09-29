@@ -38,5 +38,5 @@ def extract_fields_from_image(image_path):
             return None
 
 # Example usage
-result = extract_fields_from_image("Ethiopia-1.jpg")
-print(result)
+# result = extract_fields_from_image("Ethiopia-1.jpg")
+# print(result)

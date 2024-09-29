@@ -11,6 +11,8 @@ import uuid
 import cloudinary
 import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
+from ocr.ocr import *
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -45,40 +47,155 @@ def test():
 # @app.route('/submit-form', methods=['POST'])
 # def submit_form():
 #     try:
-#         form_data = {}
-        
-#         # Process form fields and audio files
-#         for field, files in request.files.lists():
-#             transcriptions = []
-#             for file in files:
-#                 if file.filename:
-#                     filename = secure_filename(file.filename)
-#                     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-#                     file.save(file_path)
-#                     if file.filename.lower().endswith(('.wav', '.mp3', '.ogg')):
-#                         # Determine language (you might want to pass this as a parameter)
-#                         lang = 'en'  # or 'rw' for Kinyarwanda
-#                         transcription = transcribe_audio(file_path, lang)
-#                         if lang != 'en':
-#                             # Translate to English if not already in English
-#                             transcription = translate_text(transcription, source_lang=lang, target_lang='en', service='amazon')
-#                         transcriptions.append(transcription)
-#                     os.remove(file_path)  # Remove file after processing
-#             form_data[field] = transcriptions if transcriptions else request.form.getlist(field)
+#         result = {
+#             "image": None,
+#             "audios": []
+#         }
+#         print("Processing form submission")
 
+#         # Get the language for all audios
+#         lang = request.form.get('lang', 'en')
+#         print("Lang:", lang)
+        
 #         # Process OCR image
-#         ocr_image = request.files.get('ocrImage')
+#         print("Processing image")
+#         ocr_image = request.files.get('image')
 #         if ocr_image:
+#             print(ocr_image)
+#             print(ocr_image.filename)
+#             filename = ocr_image.filename
 #             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 #             ocr_image.save(file_path)
-#             ocr_text = process_image_ocr(file_path)
-#             form_data['ocrText'] = ocr_text
+
+#             ocr_results = extract_fields_from_image(file_path)
+#             upload_result = cloudinary.uploader.upload(file_path,
+#                 resource_type="auto",
+#                 public_id=f"images/{filename}")
+#             result["image"] = {
+#                 "url": upload_result['secure_url'],
+#                 "ocr_results": ocr_results
+#             }
 #             os.remove(file_path)  # Remove file after processing
 
-#         return jsonify({"result": form_data}), 200
+#         # Process audios
+#         print("Processing audios")
+#         print("Request form:", request.form['audios'])
+#         # audios_data = request.form['audios']
+#         audios_data = json.loads(request.form['audios'])
+#         print("Audios data:", audios_data)
+#         for audio_data in list(audios_data):
+#             print("Audio data:", audio_data)
+#             # audio_data = json.loads(audio_data)
+#             audio_file = audio_data['audio']
+#             print("Audio file:", audio_file)
+#             if audio_file:
+#                 print("Processing audio file")
+#                 filename = audio_file
+#                 # file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#                 # with open(file_path, 'wb') as audio_file:
+#                 #     # audio_file.save(file_path)
+#                 #     audio_file.write(request.files[audio_file].read())
+#                 print('here')
+#                 print(lang)
+#                 transcription = transcribe_audio(filename, lang)
+#                 print("Transcription:", transcription)
+#                 if lang != 'en':
+#                     # Translate to English if not already in English
+#                     transcription = translate_text(transcription, source_lang=lang, target_lang='en', service='amazon')
+                
+#                 upload_result = cloudinary.uploader.upload(file_path,
+#                     resource_type="auto",
+#                     public_id=f"audios/{filename}")
+                
+#                 result["audios"].append({
+#                     "audio": upload_result['secure_url'],
+#                     "target": audio_data['target'],
+#                     "transcription": transcription
+#                 })
+                
+#                 os.remove(file_path)  # Remove file after processing
+
+#         return jsonify(result), 200
 
 #     except Exception as e:
+#         print(f"Error: {str(e)}")
+#         import traceback
+#         print(traceback.format_exc())
 #         return jsonify({"error": str(e)}), 500
+@app.route('/submit-form', methods=['POST'])
+def submit_form():
+    try:
+        result = {
+            "image": None,
+            "audios": []
+        }
+        print("Processing form submission")
+
+        # Get the language for all audios
+        lang = request.form.get('lang', 'en')
+        print("Lang:", lang)
+        
+        # Process OCR image
+        ocr_image = request.files.get('image')
+        if ocr_image:
+            filename = ocr_image.filename
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            ocr_image.save(file_path)
+
+            ocr_results = extract_fields_from_image(file_path)
+            upload_result = cloudinary.uploader.upload(file_path,
+                resource_type="auto",
+                public_id=f"images/{filename}")
+            result["image"] = {
+                "url": upload_result['secure_url'],
+                "ocr_results": json.loads(ocr_results)
+            }
+            os.remove(file_path)
+
+        # # Process audios
+        # print("Processing audios")
+        # audios_data = json.loads(request.form['audios'])
+        # print("Audios data:", audios_data)
+        
+        # for audio_data in audios_data:
+        #     print("Audio data:", audio_data)
+        #     audio_file = request.files.get(audio_data['audio'])
+        #     print("here")
+        #     if audio_file:
+        #         print(f"Processing audio file: {audio_file.filename}")
+        #         file_path = os.path.join(app.config['UPLOAD_FOLDER'], audio_file.filename)
+        #         audio_file.save(file_path)
+                
+        #         print(f"Transcribing audio: {file_path}")
+        #         transcription = transcribe_audio(file_path, lang)
+        #         print("Transcription:", transcription)
+                
+        #         if lang != 'en':
+        #             print("Translating to English")
+        #             transcription = translate_text(transcription, source_lang=lang, target_lang='en', service='amazon')
+                
+        #         print("Uploading to Cloudinary")
+        #         upload_result = cloudinary.uploader.upload(file_path,
+        #             resource_type="auto",
+        #             public_id=f"audios/{audio_file.filename}")
+                
+        #         result["audios"].append({
+        #             "audio": upload_result['secure_url'],
+        #             "target": audio_data['target'],
+        #             "transcription": transcription
+        #         })
+                
+        #         os.remove(file_path)
+        #     else:
+        #         print(f"Audio file not found: {audio_data['audio']}")
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/process', methods=['POST'])
 def process_input():
@@ -111,7 +228,7 @@ def handle_audio_input(file, lang):
         llm_response = run_chat_session(text_for_llm)
         
         if llm_response['op_type'] in ['new', 'renew']:
-            return jsonify({"redirect_url": llm_response['redirect_url']})
+            return jsonify({"redir_url": llm_response['redir_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
                 translation = translate_text(llm_response['data'], source_lang='en', target_lang=lang,service='amazon')        
@@ -150,7 +267,7 @@ def handle_text_input(data, lang):
         llm_response = run_chat_session(text_for_llm)
         
         if llm_response['op_type'] in ['new', 'renew']:
-            return jsonify({"redirect_url": llm_response['redirect_url']})
+            return jsonify({"redir_url": llm_response['redir_url']})
         elif llm_response['op_type'] == 'chat':
             if lang != 'en':
                 translation = translate_text(llm_response['data'], source_lang='en', target_lang=lang, service='amazon')
