@@ -13,7 +13,12 @@ import uuid
 from groq import Groq
 
 # Load environment variables
-load_dotenv()
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+env_path = os.path.join(project_root, '.env')
+
+# Load the .env file
+load_dotenv(dotenv_path=env_path)
 openai_key = os.getenv("OPENAI_API_KEY")
 groq_key = os.getenv("GROQ_API_KEY")
 
@@ -133,6 +138,7 @@ def run_chat_session(user_message: str):
     Returns:
         str: The assistant's response message content.
     """
+    print("Initializing chat session...")
     message_history = [
         {
             "role": "system",
@@ -157,11 +163,11 @@ def run_chat_session(user_message: str):
             3. redir_url takes on the same value as op_type. If the query is about student permits, the redir_url should be new or renew.
             For other queries, the redir_url should be chat.
 
-            {{
-            data: Your response here
-            op_type: new/renew/chat,
-            redir_url: new/renew/chat,        
-            }}
+            {
+            "data": "Your response here",
+            "op_type": "new/renew/chat",
+            "redir_url": "new/renew/chat",
+            }
             """
         }
     ]
@@ -174,17 +180,20 @@ def run_chat_session(user_message: str):
     
     # Get assistant response
     assistant_response = get_chat_completion(message_history)
+    print("RESPONSE")
     
-    if assistant_response:
+    print(assistant_response)
+    # if assistant_response:
         # Append assistant's response to the message history
-        message_history.append({"role": "assistant", "content": assistant_response})
-        response_json = json.loads(assistant_response)
-        return response_json
-    else:
-        return "Failed to generate a response."
+    message_history.append({"role": "assistant", "content": assistant_response})
+    response_json = json.loads(assistant_response)
+    print("before return")
+    return response_json
+    # else:
+        # return "Failed to generate a response."
 
-# Example usage:
-if __name__ == "__main__":
-    user_query = input("User: ")
-    response = run_chat_session(user_query)
-    print(f"Assistant: {response}")
+# # Example usage:
+# if __name__ == "__main__":
+#     user_query = input("User: ")
+#     response = run_chat_session(user_query)
+#     print(f"Assistant: {response}")
