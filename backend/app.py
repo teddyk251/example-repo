@@ -5,6 +5,7 @@ from speech.stt import transcribe_audio
 from speech.tts import synthesize_text_to_speech
 from translate.translate import translate_text
 from rag.data_processor import run_chat_session
+from rag.rag_with_openai import get_irembo_assistant_response
 from dotenv import load_dotenv
 from flask_cors import CORS
 import uuid
@@ -32,6 +33,8 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
 # Configuration       
 cloudinary.config( 
     cloud_name = "dlu3m1ulr", 
@@ -44,84 +47,6 @@ cloudinary.config(
 def test():
     return jsonify({"message": "Test successful"}), 200
 
-# @app.route('/submit-form', methods=['POST'])
-# def submit_form():
-#     try:
-#         result = {
-#             "image": None,
-#             "audios": []
-#         }
-#         print("Processing form submission")
-
-#         # Get the language for all audios
-#         lang = request.form.get('lang', 'en')
-#         print("Lang:", lang)
-        
-#         # Process OCR image
-#         print("Processing image")
-#         ocr_image = request.files.get('image')
-#         if ocr_image:
-#             print(ocr_image)
-#             print(ocr_image.filename)
-#             filename = ocr_image.filename
-#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-#             ocr_image.save(file_path)
-
-#             ocr_results = extract_fields_from_image(file_path)
-#             upload_result = cloudinary.uploader.upload(file_path,
-#                 resource_type="auto",
-#                 public_id=f"images/{filename}")
-#             result["image"] = {
-#                 "url": upload_result['secure_url'],
-#                 "ocr_results": ocr_results
-#             }
-#             os.remove(file_path)  # Remove file after processing
-
-#         # Process audios
-#         print("Processing audios")
-#         print("Request form:", request.form['audios'])
-#         # audios_data = request.form['audios']
-#         audios_data = json.loads(request.form['audios'])
-#         print("Audios data:", audios_data)
-#         for audio_data in list(audios_data):
-#             print("Audio data:", audio_data)
-#             # audio_data = json.loads(audio_data)
-#             audio_file = audio_data['audio']
-#             print("Audio file:", audio_file)
-#             if audio_file:
-#                 print("Processing audio file")
-#                 filename = audio_file
-#                 # file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-#                 # with open(file_path, 'wb') as audio_file:
-#                 #     # audio_file.save(file_path)
-#                 #     audio_file.write(request.files[audio_file].read())
-#                 print('here')
-#                 print(lang)
-#                 transcription = transcribe_audio(filename, lang)
-#                 print("Transcription:", transcription)
-#                 if lang != 'en':
-#                     # Translate to English if not already in English
-#                     transcription = translate_text(transcription, source_lang=lang, target_lang='en', service='amazon')
-                
-#                 upload_result = cloudinary.uploader.upload(file_path,
-#                     resource_type="auto",
-#                     public_id=f"audios/{filename}")
-                
-#                 result["audios"].append({
-#                     "audio": upload_result['secure_url'],
-#                     "target": audio_data['target'],
-#                     "transcription": transcription
-#                 })
-                
-#                 os.remove(file_path)  # Remove file after processing
-
-#         return jsonify(result), 200
-
-#     except Exception as e:
-#         print(f"Error: {str(e)}")
-#         import traceback
-#         print(traceback.format_exc())
-#         return jsonify({"error": str(e)}), 500
 @app.route('/submit-form', methods=['POST'])
 def submit_form():
     try:
@@ -225,7 +150,11 @@ def handle_audio_input(file, lang):
             text_for_llm = translation
         else:
             text_for_llm = transcription
-        llm_response = run_chat_session(text_for_llm)
+        # llm_response = run_chat_session(text_for_llm)
+        json_file_path = os.path.join(current_dir, 'rag', 'data', 'web_scrape_output_with_content.json')
+        print(json_file_path)
+        llm_response = get_irembo_assistant_response(text_for_llm, data_file_path=json_file_path)
+        # llm_response = get_irembo_assistant_response(text_for_llm, data_file_path="/Users/teddy/dev/Conversational-customer-support-agent/backend/rag/data/web_scrape_output_with_content.json")
         
         if llm_response['op_type'] in ['new', 'renew']:
             return jsonify({"redir_url": llm_response['redir_url']})
@@ -263,8 +192,10 @@ def handle_text_input(data, lang):
             text_for_llm = translation
         else:
             text_for_llm = text
-        
-        llm_response = run_chat_session(text_for_llm)
+        # llm_response = get_irembo_assistant_response(text_for_llm, data_file_path="/Users/teddy/dev/Conversational-customer-support-agent/backend/rag/data/web_scrape_output_with_content.json")
+        json_file_path = os.path.join(current_dir, 'rag', 'data', 'web_scrape_output_with_content.json')
+        llm_response = get_irembo_assistant_response(text_for_llm, data_file_path=json_file_path)
+        # llm_response = run_chat_session(text_for_llm)
         
         if llm_response['op_type'] in ['new', 'renew']:
             return jsonify({"redir_url": llm_response['redir_url']})

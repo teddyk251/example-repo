@@ -11,3 +11,4 @@ openai==1.50.2
 protobuf==5.28.2
 python-dotenv==1.0.1
 Requests==2.32.3
+faiss-cpu

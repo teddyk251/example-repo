@@ -10,13 +10,24 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_tools import format_to_openai_tool_messages
+import re
+
+def extract_json_from_response(response):
+    try:
+        # Use regex to find content between the first set of curly braces
+        json_string = re.search(r"\{.*\}", response, re.DOTALL).group()
+        return json_string
+    except AttributeError as e:
+        # Handle regex matching errors
+        print(f"Error: No valid JSON found in the response - {e}")
+        return {"error": "Invalid JSON response"}
 
 def load_environment_variables():
     load_dotenv()
     return os.getenv("OPENAI_API_KEY")
 
 def initialize_components(openai_key):
-    llm = ChatOpenAI(openai_api_key=openai_key)
+    llm = ChatOpenAI(openai_api_key=openai_key, temperature=0 , model="gpt-4o")
     embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
     return llm, embeddings
 
@@ -89,11 +100,11 @@ def setup_agent(llm, retriever_tool):
 
             Strictly follow this format for all outputs.
             
-            {{{{
+            {{
             "data": "Your response here",
             "op_type": "new|renew|chat",
             "redir_url": "new|renew|chat"
-            }}}}
+            }}
             
         """),
         ("human", "{input}"),
@@ -121,13 +132,14 @@ def get_irembo_assistant_response(user_query, data_file_path="data/web_scrape_ou
     agent_executor = setup_agent(llm, retriever_tool)
     result = agent_executor.invoke({"input": user_query})
     response = result['output']
+    response= extract_json_from_response(response)
     response_json = json.loads(response)
     return response_json
 
-# Example usage
-if __name__ == "__main__":
-    user_query = "How do I apply for a student permit?"
-    response = get_irembo_assistant_response(user_query)
-    print('-----------')
-    print(type(response))
-    print(response)
+# # Example usage
+# if __name__ == "__main__":
+#     user_query = "How much is a marriage certificate?"
+#     response = get_irembo_assistant_response(user_query)
+#     print('-----------')
+#     print(type(response))
+#     print(response)
