@@ -21,6 +21,10 @@ def translate_text(text: str = "Kwa hivyo",
                    target_lang: str = "en", 
                    service: str = "google") -> str:
     """Translates text using either Google or Amazon Translate."""
+    if source_lang == 'rw' and target_lang == 'en':
+        return google_translate(text, project_id, source_lang, target_lang)
+    if source_lang == 'en' and target_lang == 'rw':
+        return google_translate(text, project_id, source_lang, target_lang)
     
     if service == "google":
         return google_translate(text, project_id, source_lang, target_lang)

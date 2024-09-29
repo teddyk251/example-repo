@@ -68,9 +68,10 @@ def synthesize_speech_pindo(text: str, language: str):
             audio_url = response.json().get("generated_audio_url")
             audio_content = requests.get(audio_url).content
 
+            output_file = "output_openai.wav"
             file_path = os.path.join(UPLOAD_FOLDER, f"{output_file}_{uuid.uuid4().hex[:8]}")
             with open(file_path, "wb") as audio_file:
-                out.write(audio_content)
+                audio_file.write(audio_content)
             logging.info(f"Pindo TTS audio saved to {output_file}")
             logging.info(f"Pindo TTS took {time.time() - start} seconds.")
             return file_path
